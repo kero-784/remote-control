@@ -1,41 +1,41 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Desk - Session</title>
+    <title>Remote Desk - Active Session</title>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/remote.css">
     <link rel="manifest" href="manifest.json">
 </head>
 <body class="remote-body">
     <div class="remote-container">
-        <!-- Toolbar -->
+        <!-- Complete Interactive Toolbar -->
         <div class="toolbar" id="toolbar">
             <div class="toolbar-group">
-                <span class="session-name" id="session-name">Connecting...</span>
-                <span class="badge badge-warning" id="demo-badge">MOCK MODE</span>
+                <span class="session-name" id="session-name">Session: Office-PC</span>
+                <span class="badge badge-warning" id="demo-badge">CONNECTING...</span>
             </div>
             
             <div class="toolbar-group controls">
-                <button class="tool-btn active" id="btn-mouse" title="Toggle Mouse Control">Mouse</button>
-                <button class="tool-btn active" id="btn-keyboard" title="Toggle Keyboard Control">Keyboard</button>
-                <button class="tool-btn" id="btn-clipboard" title="Send Clipboard">Clipboard</button>
-                <button class="tool-btn" id="btn-cad" title="Send Ctrl+Alt+Del">Ctrl+Alt+Del</button>
+                <button class="tool-btn active" id="btn-mouse" title="Toggle Mouse Control">🖱️ Mouse</button>
+                <button class="tool-btn active" id="btn-keyboard" title="Toggle Keyboard Control">⌨️ Keyboard</button>
+                <button class="tool-btn" id="btn-clipboard" title="Send Clipboard to Remote">📋 Clipboard</button>
+                <button class="tool-btn" id="btn-cad" title="Send Ctrl+Alt+Del">⚡ Ctrl+Alt+Del</button>
                 
-                <select id="select-quality" class="tool-select">
-                    <option value="high">High Quality</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low (Fast)</option>
+                <select id="select-quality" class="tool-select" title="Stream Video Quality">
+                    <option value="1080p">1080p (High)</option>
+                    <option value="720p">720p (Medium)</option>
+                    <option value="480p">480p (Fast)</option>
                 </select>
                 
-                <select id="select-scale" class="tool-select">
+                <select id="select-scale" class="tool-select" title="Display Scaling Mode">
                     <option value="fit">Fit Screen</option>
-                    <option value="actual">Actual Size</option>
+                    <option value="actual">Actual Size (100%)</option>
                 </select>
 
-                <button class="tool-btn" id="btn-fullscreen" title="Full Screen">Fullscreen</button>
+                <button class="tool-btn" id="btn-fullscreen" title="Full Screen">⛶ Fullscreen</button>
+                <button class="tool-btn" id="btn-reconnect" title="Restart WebRTC Connection" style="color: #60a5fa;">🔄 Reconnect</button>
             </div>
             
             <div class="toolbar-group">
@@ -43,9 +43,8 @@
             </div>
         </div>
 
-        <!-- Remote Screen Area -->
+        <!-- Remote Screen Viewport -->
         <div class="screen-wrapper" id="screen-wrapper">
-            <!-- The video stream from WebRTC will be attached here -->
             <video id="remote-video" autoplay playsinline muted></video>
         </div>
     </div>
