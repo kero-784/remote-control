@@ -19,7 +19,7 @@ getElement('session-name').innerText = `Session: ${deviceName}`;
 
 // System setup
 const videoElement = getElement('remote-video');
-const signaling = new SignalingSocket('wss://3ceb5994927062.lhr.life', 'controller', deviceId);
+const signaling = new SignalingSocket('wss://7c5cc4067227b4.lhr.life', 'controller', deviceId);
 const webrtc = new WebRTCConnection(signaling);
 const inputMgr = new InputManager(videoElement, webrtc);
 
