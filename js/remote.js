@@ -5,76 +5,100 @@ import { SignalingSocket } from './websocket.js';
 import { WebRTCConnection } from './webrtc.js';
 import { InputManager } from './input.js';
 
-// Protect route
 if (!isAuthenticated()) {
     window.location.replace('./login.html');
 }
 
-// Parse URL params
 const urlParams = new URLSearchParams(window.location.search);
-const deviceId = urlParams.get('id');
-const deviceName = urlParams.get('name') || 'Unknown Device';
+const deviceId = urlParams.get('id') || 'dev-001';
+const deviceName = urlParams.get('name') || 'Office-PC';
 
 getElement('session-name').innerText = `Session: ${deviceName}`;
 
-// System setup
 const videoElement = getElement('remote-video');
+const demoBadge = getElement('demo-badge');
+
+// UPDATE THIS WITH YOUR CURRENT TUNNEL URL
 const signaling = new SignalingSocket('wss://4c3348dbca0325.lhr.life', 'controller', deviceId);
 const webrtc = new WebRTCConnection(signaling);
 const inputMgr = new InputManager(videoElement, webrtc);
 
-// Connect Mock Architecture
+let mockAnimationId = null;
+
+// ----------------------------------------------------
+// WebRTC Stream Listener (Replaces Mock with Live Stream)
+// ----------------------------------------------------
+webrtc.onStream = (liveStream) => {
+    console.log('[Remote] Attaching LIVE screen stream to video player!');
+    
+    // Stop the fake mock canvas animation
+    if (mockAnimationId) {
+        cancelAnimationFrame(mockAnimationId);
+    }
+
+    // Switch badge from MOCK MODE to LIVE
+    if (demoBadge) {
+        demoBadge.innerText = 'LIVE STREAM';
+        demoBadge.className = 'badge badge-success';
+    }
+
+    // Attach real desktop stream
+    videoElement.srcObject = liveStream;
+};
+
+// ----------------------------------------------------
+// Signaling Message Router
+// ----------------------------------------------------
+signaling.onMessage = (data) => {
+    if (data.type === 'webrtc_answer') {
+        webrtc.handleAnswer(data.sdp);
+    } else if (data.type === 'ice_candidate') {
+        webrtc.handleIceCandidate(data.candidate);
+    }
+};
+
+// Connect
 signaling.connect();
 webrtc.init();
 
 // ----------------------------------------------------
-// MOCK MODE: Generate Fake Video Stream using Canvas
+// Mock Mode Fallback (Plays until live stream arrives)
 // ----------------------------------------------------
 function startMockStream() {
     const canvas = document.createElement('canvas');
     canvas.width = 1920;
     canvas.height = 1080;
     const ctx = canvas.getContext('2d');
-    
     let x = 0;
-    let y = 100;
     
     function drawFakeDesktop() {
-        // Desktop background
-        ctx.fillStyle = '#2c3e50';
+        ctx.fillStyle = '#0f172a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Fake Window
-        ctx.fillStyle = '#ecf0f1';
-        ctx.fillRect(400, 200, 1120, 680);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(300, 150, 1320, 780);
         
-        // Window Title bar
-        ctx.fillStyle = '#34495e';
-        ctx.fillRect(400, 200, 1120, 40);
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(300, 150, 1320, 50);
         
-        // Text
-        ctx.fillStyle = '#333';
-        ctx.font = '40px Arial';
-        ctx.fillText(`Connected to: ${deviceName}`, 450, 300);
-        ctx.fillText(`Device ID: ${deviceId}`, 450, 360);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '32px Arial';
+        ctx.fillText(`Waiting for live video from: ${deviceName} (${deviceId})...`, 350, 280);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '22px Arial';
+        ctx.fillText('Authorize screen capture on the Agent machine to start live session.', 350, 340);
         
-        // Moving element to prove it's a live stream
-        ctx.fillStyle = '#e74c3c';
+        ctx.fillStyle = '#3b82f6';
         ctx.beginPath();
-        ctx.arc(x % canvas.width, 500, 30, 0, Math.PI * 2);
+        ctx.arc((x % (canvas.width - 600)) + 300, 500, 25, 0, Math.PI * 2);
         ctx.fill();
-        x += 5;
+        x += 6;
         
-        requestAnimationFrame(drawFakeDesktop);
+        mockAnimationId = requestAnimationFrame(drawFakeDesktop);
     }
     
     drawFakeDesktop();
-    
-    // Capture stream at 30 FPS and attach to video element
-    const stream = canvas.captureStream(30);
-    videoElement.srcObject = stream;
-    
-    // Default class
+    videoElement.srcObject = canvas.captureStream(30);
     videoElement.className = 'scale-fit';
 }
 
@@ -83,7 +107,6 @@ startMockStream();
 // ----------------------------------------------------
 // Toolbar Controls
 // ----------------------------------------------------
-
 getElement('btn-disconnect').addEventListener('click', () => {
     webrtc.close();
     signaling.disconnect();
@@ -102,39 +125,12 @@ btnKeyboard.addEventListener('click', () => {
     inputMgr.toggleKeyboard(btnKeyboard.classList.contains('active'));
 });
 
-getElement('btn-cad').addEventListener('click', () => {
-    webrtc.sendData({ type: 'macro', action: 'ctrl_alt_del' });
-});
-
-getElement('btn-clipboard').addEventListener('click', async () => {
-    try {
-        const text = await navigator.clipboard.readText();
-        webrtc.sendData({ type: 'clipboard', data: text });
-        alert('Clipboard sent to remote agent!');
-    } catch (err) {
-        alert('Clipboard access denied or empty.');
-    }
-});
-
 getElement('btn-fullscreen').addEventListener('click', () => {
     const wrapper = getElement('screen-wrapper');
-    if (!document.fullscreenElement) {
-        wrapper.requestFullscreen().catch(err => {
-            console.error(`Error attempting to enable fullscreen: ${err.message}`);
-        });
-    } else {
-        document.exitFullscreen();
-    }
+    if (!document.fullscreenElement) wrapper.requestFullscreen();
+    else document.exitFullscreen();
 });
 
 getElement('select-scale').addEventListener('change', (e) => {
-    if (e.target.value === 'fit') {
-        videoElement.className = 'scale-fit';
-    } else {
-        videoElement.className = 'scale-actual';
-    }
-});
-
-getElement('select-quality').addEventListener('change', (e) => {
-    webrtc.sendData({ type: 'setting_change', setting: 'quality', value: e.target.value });
+    videoElement.className = e.target.value === 'fit' ? 'scale-fit' : 'scale-actual';
 });
