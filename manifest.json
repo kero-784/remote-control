@@ -1,0 +1,23 @@
+FILE: manifest.json
+{
+  "name": "Remote Desktop Agent",
+  "short_name": "RemoteDesk",
+  "description": "Secure remote desktop access and support tool.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#1e1e1e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "assets/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

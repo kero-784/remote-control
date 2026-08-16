@@ -1,0 +1,84 @@
+FILE: css/remote.css
+.remote-body {
+    overflow: hidden; /* Prevent scrolling during session */
+}
+
+.remote-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+}
+
+.toolbar {
+    height: 50px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1rem;
+    z-index: 100;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.session-name { font-weight: bold; margin-right: 1rem; }
+
+.controls {
+    flex: 1;
+    justify-content: center;
+}
+
+.tool-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.tool-btn:hover { background: var(--bg-hover); color: var(--text-main); }
+.tool-btn.active { background: rgba(52, 152, 219, 0.2); border-color: var(--primary); color: var(--primary); }
+
+.tool-select {
+    background: var(--bg-dark);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 0.3rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.screen-wrapper {
+    flex: 1;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: auto; /* Allow scroll if actual size is larger than viewport */
+}
+
+#remote-video {
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    background: #111; /* Fallback before stream loads */
+}
+
+/* Scaling classes */
+.scale-fit {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.scale-actual {
+    /* Dimensions derived from stream, not constrained by flex */
+    max-width: none;
+    max-height: none;
+}

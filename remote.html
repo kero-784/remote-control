@@ -1,0 +1,56 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Desk - Session</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/remote.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body class="remote-body">
+    <div class="remote-container">
+        <!-- Toolbar -->
+        <div class="toolbar" id="toolbar">
+            <div class="toolbar-group">
+                <span class="session-name" id="session-name">Connecting...</span>
+                <span class="badge badge-warning" id="demo-badge">MOCK MODE</span>
+            </div>
+            
+            <div class="toolbar-group controls">
+                <button class="tool-btn active" id="btn-mouse" title="Toggle Mouse Control">Mouse</button>
+                <button class="tool-btn active" id="btn-keyboard" title="Toggle Keyboard Control">Keyboard</button>
+                <button class="tool-btn" id="btn-clipboard" title="Send Clipboard">Clipboard</button>
+                <button class="tool-btn" id="btn-cad" title="Send Ctrl+Alt+Del">Ctrl+Alt+Del</button>
+                
+                <select id="select-quality" class="tool-select">
+                    <option value="high">High Quality</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low (Fast)</option>
+                </select>
+                
+                <select id="select-scale" class="tool-select">
+                    <option value="fit">Fit Screen</option>
+                    <option value="actual">Actual Size</option>
+                </select>
+
+                <button class="tool-btn" id="btn-fullscreen" title="Full Screen">Fullscreen</button>
+            </div>
+            
+            <div class="toolbar-group">
+                <button class="btn btn-danger" id="btn-disconnect">Disconnect</button>
+            </div>
+        </div>
+
+        <!-- Remote Screen Area -->
+        <div class="screen-wrapper" id="screen-wrapper">
+            <!-- The video stream from WebRTC will be attached here -->
+            <video id="remote-video" autoplay playsinline muted></video>
+        </div>
+    </div>
+    
+    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/remote.js"></script>
+</body>
+</html>
