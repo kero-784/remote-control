@@ -1,4 +1,3 @@
-
 export class SignalingSocket {
     constructor(url, role = 'controller', deviceId = 'dev-001') {
         this.url = url;
@@ -6,7 +5,7 @@ export class SignalingSocket {
         this.deviceId = deviceId;
         this.socket = null;
         this.onMessage = null;
-        this.messageQueue = []; // Queue messages until connected
+        this.messageQueue = [];
     }
 
     connect() {
@@ -23,7 +22,7 @@ export class SignalingSocket {
                 deviceId: this.deviceId
             }));
 
-            // 2. Flush queued WebRTC messages
+            // 2. Send any messages that were waiting in queue
             while (this.messageQueue.length > 0) {
                 const queuedData = this.messageQueue.shift();
                 console.log('[WebSocket] Sending queued message:', queuedData.type);
@@ -37,3 +36,31 @@ export class SignalingSocket {
                 console.log('[WebSocket RX]:', data);
                 if (this.onMessage) this.onMessage(data);
             } catch (err) {
+                console.error('[WebSocket] Error parsing message:', err);
+            }
+        };
+
+        this.socket.onerror = (err) => console.error('[WebSocket Error]:', err);
+        this.socket.onclose = () => console.log('[WebSocket] Disconnected.');
+    }
+
+    send(data) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify(data));
+        } else {
+            console.log('[WebSocket] Socket connecting, queuing message:', data.type || 'unknown');
+            this.messageQueue.push(data);
+        }
+    }
+
+    sendToAgent(data) {
+        data.targetId = this.deviceId;
+        this.send(data);
+    }
+
+    disconnect() {
+        if (this.socket) {
+            this.socket.close();
+        }
+    }
+}
