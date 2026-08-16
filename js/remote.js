@@ -1,4 +1,3 @@
-
 import { getElement, getStorage } from './utils.js';
 import { isAuthenticated } from './auth.js';
 import { SignalingSocket } from './websocket.js';
@@ -35,47 +34,37 @@ let mockAnimationId = null;
 // Core Session Initializer
 // ----------------------------------------------------
 function initSession() {
-    // Teardown any existing connections if reconnecting
     if (signaling) signaling.disconnect();
     if (webrtc) webrtc.close();
 
     signaling = new SignalingSocket(tunnelUrl, 'controller', deviceId);
     webrtc = new WebRTCConnection(signaling);
 
-    // 5. Connect Input Engine to BOTH native Windows Agent & WebRTC DataChannel
     inputMgr = new InputManager(videoElement, {
         sendData: (payload) => {
-            // Send to Native Windows Agent via WebSocket (for physical cursor/keyboard control)
             if (signaling) {
                 signaling.sendToAgent({
                     type: 'remote_input',
                     payload: payload
                 });
             }
-            
-            // Also send over WebRTC P2P DataChannel if open
             if (webrtc) {
                 webrtc.sendData(payload);
             }
         }
     });
 
-    // 6. Real Stream Handler (Switches off Mock Mode when live video arrives)
     webrtc.onStream = (liveStream) => {
         console.log('[Remote] LIVE remote screen attached successfully!');
-        
-        // Stop canvas animation
         if (mockAnimationId) {
             cancelAnimationFrame(mockAnimationId);
             mockAnimationId = null;
         }
-        
         demoBadge.innerText = 'LIVE STREAM (60 FPS)';
         demoBadge.className = 'badge badge-success';
         videoElement.srcObject = liveStream;
     };
 
-    // 7. Signaling Message Router
     signaling.onMessage = (data) => {
         if (data.type === 'webrtc_answer') {
             webrtc.handleAnswer(data.sdp);
@@ -88,12 +77,9 @@ function initSession() {
     webrtc.init();
 }
 
-// Start Session
 initSession();
 
-// ----------------------------------------------------
-// Fallback Canvas Mock Engine (Plays until Agent connects)
-// ----------------------------------------------------
+// Fallback Canvas Mock Engine
 function startMockStream() {
     const canvas = document.createElement('canvas');
     canvas.width = 1920;
@@ -134,31 +120,23 @@ function startMockStream() {
 
 startMockStream();
 
-// ====================================================
-// TOOLBAR BUTTONS & CONTROLS
-// ====================================================
-
-// 1. Mouse Toggle Button
+// Toolbar controls
 const btnMouse = getElement('btn-mouse');
 if (btnMouse) {
     btnMouse.addEventListener('click', () => {
         btnMouse.classList.toggle('active');
-        const enabled = btnMouse.classList.contains('active');
-        if (inputMgr) inputMgr.toggleMouse(enabled);
+        if (inputMgr) inputMgr.toggleMouse(btnMouse.classList.contains('active'));
     });
 }
 
-// 2. Keyboard Toggle Button
 const btnKeyboard = getElement('btn-keyboard');
 if (btnKeyboard) {
     btnKeyboard.addEventListener('click', () => {
         btnKeyboard.classList.toggle('active');
-        const enabled = btnKeyboard.classList.contains('active');
-        if (inputMgr) inputMgr.toggleKeyboard(enabled);
+        if (inputMgr) inputMgr.toggleKeyboard(btnKeyboard.classList.contains('active'));
     });
 }
 
-// 3. Send Clipboard to Remote Machine
 const btnClipboard = getElement('btn-clipboard');
 if (btnClipboard) {
     btnClipboard.addEventListener('click', async () => {
@@ -183,7 +161,6 @@ if (btnClipboard) {
     });
 }
 
-// 4. Send Ctrl+Alt+Del Macro
 const btnCad = getElement('btn-cad');
 if (btnCad) {
     btnCad.addEventListener('click', () => {
@@ -197,7 +174,6 @@ if (btnCad) {
     });
 }
 
-// 5. Display Scaling Mode (Fit Screen vs 100% Actual Size)
 const selectScale = getElement('select-scale');
 if (selectScale) {
     selectScale.addEventListener('change', (e) => {
@@ -205,7 +181,6 @@ if (selectScale) {
     });
 }
 
-// 6. Stream Quality Selector
 const selectQuality = getElement('select-quality');
 if (selectQuality) {
     selectQuality.addEventListener('change', (e) => {
@@ -218,7 +193,6 @@ if (selectQuality) {
     });
 }
 
-// 7. Fullscreen Toggle
 const btnFullscreen = getElement('btn-fullscreen');
 if (btnFullscreen) {
     btnFullscreen.addEventListener('click', () => {
@@ -231,7 +205,6 @@ if (btnFullscreen) {
     });
 }
 
-// 8. Reconnect Button
 const btnReconnect = getElement('btn-reconnect');
 if (btnReconnect) {
     btnReconnect.addEventListener('click', () => {
@@ -241,7 +214,6 @@ if (btnReconnect) {
     });
 }
 
-// 9. Disconnect Button
 const btnDisconnect = getElement('btn-disconnect');
 if (btnDisconnect) {
     btnDisconnect.addEventListener('click', () => {
