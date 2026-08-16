@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,9 +13,10 @@
         <aside class="sidebar">
             <div class="brand">Remote Desk</div>
             <nav class="sidebar-nav">
-                <a href="#" class="active">My Computers</a>
-                <a href="#">Recent Connections</a>
-                <a href="#">Settings</a>
+                <a href="#" id="nav-computers" class="active">💻 My Computers</a>
+                <a href="agent.html" target="_blank" style="color: #4ade80;">📡 Host This PC (Agent)</a>
+                <a href="#" id="nav-recent">🕒 Recent Sessions</a>
+                <a href="#" id="nav-settings">⚙️ Settings</a>
             </nav>
             <div class="sidebar-footer">
                 <button id="logout-btn" class="btn btn-danger">Logout</button>
@@ -24,27 +24,54 @@
         </aside>
         
         <main class="main-content">
-            <header class="topbar">
-                <h2>My Computers</h2>
-                <div class="topbar-actions">
-                    <span class="user-badge" id="user-email-display">user@example.com</span>
+            <!-- COMPUTERS VIEW -->
+            <section id="view-computers">
+                <header class="topbar">
+                    <h2>My Computers</h2>
+                    <div class="topbar-actions">
+                        <span class="user-badge" id="user-email-display">user@example.com</span>
+                    </div>
+                </header>
+                
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <h3>Online Devices</h3>
+                        <p id="stat-online" style="color: #22c55e;">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Offline Devices</h3>
+                        <p id="stat-offline" style="color: #ef4444;">0</p>
+                    </div>
                 </div>
-            </header>
-            
-            <div class="stats-row">
-                <div class="stat-card">
-                    <h3>Online</h3>
-                    <p id="stat-online">0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Offline</h3>
-                    <p id="stat-offline">0</p>
-                </div>
-            </div>
 
-            <div class="computers-grid" id="computers-grid">
-                <!-- Populated by JS -->
-            </div>
+                <div class="computers-grid" id="computers-grid"></div>
+            </section>
+
+            <!-- RECENT SESSIONS VIEW -->
+            <section id="view-recent" style="display: none;">
+                <header class="topbar">
+                    <h2>Recent Sessions</h2>
+                </header>
+                <div class="recent-list" id="recent-list" style="background: var(--bg-panel); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <p style="color: var(--text-muted);">No recent sessions recorded yet.</p>
+                </div>
+            </section>
+
+            <!-- SETTINGS VIEW -->
+            <section id="view-settings" style="display: none;">
+                <header class="topbar">
+                    <h2>Signaling Server Settings</h2>
+                </header>
+                <div style="background: var(--bg-panel); padding: 2rem; border-radius: 8px; border: 1px solid var(--border); max-width: 600px;">
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label style="display:block; margin-bottom: 0.5rem; font-weight: bold;">Signaling WebSocket URL:</label>
+                        <input type="text" id="setting-tunnel-url" placeholder="wss://xxxxxx.lhr.life" style="width: 100%; padding: 0.75rem; background: var(--bg-dark); border: 1px solid var(--border); color: #fff; border-radius: 6px;">
+                        <small style="color: var(--text-muted); display: block; margin-top: 0.5rem;">Enter your active localhost.run or Pinggy URL here. This saves automatically!</small>
+                    </div>
+                    <button id="btn-save-settings" class="btn btn-primary">Save Settings</button>
+                    <span id="save-msg" style="color: #4ade80; margin-left: 1rem; display: none;">Saved successfully!</span>
+                </div>
+            </section>
         </main>
     </div>
     <script type="module" src="js/app.js"></script>
