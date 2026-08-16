@@ -1,4 +1,4 @@
-FILE: js/remote.js
+
 import { getElement, getStorage } from './utils.js';
 import { isAuthenticated } from './auth.js';
 import { SignalingSocket } from './websocket.js';
