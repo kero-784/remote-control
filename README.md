@@ -1,4 +1,4 @@
-FILE: README.md
+
 # Remote Desk
 
 A vanilla HTML5/JS frontend architecture for a secure remote desktop control system. 
