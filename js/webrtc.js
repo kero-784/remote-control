@@ -4,10 +4,13 @@ export class WebRTCConnection {
         this.signaling = signaling;
         this.peerConnection = null;
         this.dataChannel = null;
-        // Standard Google STUN servers (Free)
-        this.config = config || { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        this.config = config || { 
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ] 
+        };
         
-        // Callbacks
         this.onStream = null;
         this.onDataChannelOpen = null;
         this.onMessage = null;
@@ -17,16 +20,17 @@ export class WebRTCConnection {
         console.log('[WebRTC] Initializing PeerConnection...');
         this.peerConnection = new RTCPeerConnection(this.config);
 
-        // 1. Listen for remote video track
+        // 1. Receive LIVE remote screen stream
         this.peerConnection.ontrack = (event) => {
-            console.log('[WebRTC] Received remote stream track!');
-            if(this.onStream) this.onStream(event.streams[0]);
+            console.log('[WebRTC] Received LIVE Remote Screen Track!');
+            if (this.onStream && event.streams[0]) {
+                this.onStream(event.streams[0]);
+            }
         };
 
-        // 2. Listen for ICE candidates (Network routing info)
+        // 2. Gather ICE candidates
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('[WebRTC] Found ICE Candidate, sending to signaling server...');
                 this.signaling.sendToAgent({
                     type: 'ice_candidate',
                     candidate: event.candidate
@@ -36,12 +40,15 @@ export class WebRTCConnection {
         
         this.setupDataChannel();
 
-        // 3. Create the WebRTC Offer (The invitation to connect)
+        // 3. Create WebRTC Offer
         try {
-            const offer = await this.peerConnection.createOffer();
+            const offer = await this.peerConnection.createOffer({
+                offerToReceiveVideo: true,
+                offerToReceiveAudio: false
+            });
             await this.peerConnection.setLocalDescription(offer);
             
-            console.log('[WebRTC] Created Offer, sending to Windows Agent...');
+            console.log('[WebRTC] Created Offer, dispatching to Agent...');
             this.signaling.sendToAgent({
                 type: 'webrtc_offer',
                 sdp: offer
@@ -52,21 +59,43 @@ export class WebRTCConnection {
     }
 
     setupDataChannel() {
-        console.log('[WebRTC] Setting up DataChannel...');
-        this.dataChannel = this.peerConnection.createDataChannel('control');
+        this.dataChannel = this.peerConnection.createDataChannel('control', {
+            ordered: true
+        });
         
         this.dataChannel.onopen = () => { 
-            console.log('[WebRTC] DataChannel is OPEN!');
-            if(this.onDataChannelOpen) this.onDataChannelOpen(); 
+            console.log('[WebRTC] DataChannel is OPEN and ready for remote input!');
+            if (this.onDataChannelOpen) this.onDataChannelOpen(); 
         };
         
         this.dataChannel.onmessage = (e) => { 
-            if(this.onMessage) this.onMessage(e.data); 
+            if (this.onMessage) this.onMessage(e.data); 
         };
     }
 
+    // Process the WebRTC Answer returned by the Windows Agent
+    async handleAnswer(sdp) {
+        console.log('[WebRTC] Handling Answer from Agent...');
+        try {
+            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+            console.log('[WebRTC] Remote description set successfully! Connection active.');
+        } catch (err) {
+            console.error('[WebRTC] Error setting remote description:', err);
+        }
+    }
+
+    // Add ICE candidates received from the Agent
+    async handleIceCandidate(candidate) {
+        try {
+            if (this.peerConnection) {
+                await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+        } catch (err) {
+            console.error('[WebRTC] Error adding ICE candidate:', err);
+        }
+    }
+
     sendData(payload) {
-        // If connected, send via WebRTC. If not, log it (Mock Mode fallback)
         if (this.dataChannel && this.dataChannel.readyState === 'open') {
             this.dataChannel.send(JSON.stringify(payload));
         } else {
@@ -75,8 +104,7 @@ export class WebRTCConnection {
     }
 
     close() {
-        console.log('[WebRTC] Closing connection');
-        if(this.dataChannel) this.dataChannel.close();
-        if(this.peerConnection) this.peerConnection.close();
+        if (this.dataChannel) this.dataChannel.close();
+        if (this.peerConnection) this.peerConnection.close();
     }
 }
