@@ -1,82 +1,56 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Agent - Screen Broadcaster</title>
+    <title>Remote Agent - Broadcaster</title>
     <link rel="stylesheet" href="css/main.css">
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: #090a0f;
-        }
-        .agent-card {
-            background: #1a1d24;
-            padding: 2.5rem;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            max-width: 500px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-        }
-        .status-dot {
-            width: 14px;
-            height: 14px;
-            background: #eab308;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-        }
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #090a0f; }
+        .agent-card { background: #1a1d24; padding: 2.5rem; border-radius: 12px; border: 1px solid #334155; width: 100%; max-width: 520px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        .status-dot { width: 12px; height: 12px; background: #eab308; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .status-dot.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-        .log-box {
-            background: #0f1117;
-            padding: 1rem;
-            border-radius: 6px;
-            text-align: left;
-            font-family: monospace;
-            font-size: 0.85rem;
-            color: #94a3b8;
-            height: 150px;
-            overflow-y: auto;
-            margin-top: 1.5rem;
-            border: 1px solid #334155;
-        }
+        .log-box { background: #0f1117; padding: 1rem; border-radius: 6px; font-family: monospace; font-size: 0.8rem; color: #94a3b8; height: 160px; overflow-y: auto; margin-top: 1.5rem; border: 1px solid #334155; }
     </style>
 </head>
 <body>
     <div class="agent-card">
-        <h2>Windows Remote Agent</h2>
-        <p style="color: #94a3b8; margin-top: 0.3rem;">Device ID: <strong id="dev-id" style="color: #fff;">dev-001</strong> (Office-PC)</p>
+        <h2 style="margin-bottom: 0.5rem;">Windows Remote Agent</h2>
+        <p style="color: #94a3b8; font-size: 0.9rem;">Device: <strong style="color: #fff;">Office-PC</strong> | ID: <strong style="color: #38bdf8;">dev-001</strong></p>
         
-        <div style="margin: 1.5rem 0; font-size: 1rem;">
+        <div style="margin: 1.2rem 0; text-align: left;">
+            <label style="font-size: 0.85rem; color: #cbd5e1; display: block; margin-bottom: 0.3rem;">Signaling URL:</label>
+            <input type="text" id="agent-tunnel-input" placeholder="wss://xxxxxx.lhr.life" style="width: 100%; padding: 0.6rem; background: #0f1117; border: 1px solid #334155; color: #fff; border-radius: 6px;">
+        </div>
+
+        <div style="margin: 1rem 0;">
             <span class="status-dot" id="status-dot"></span>
-            <span id="status-text">Ready to authorize</span>
+            <span id="status-text" style="font-weight: 600;">Ready to Authorize</span>
         </div>
 
         <button id="btn-share" class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-size: 1rem;">
-            Authorize & Share Screen
+            🛡️ Authorize & Share Screen
         </button>
 
         <div class="log-box" id="log-box">
-            <div>[Agent] Standing by...</div>
+            <div>[Agent] Broadcaster ready.</div>
         </div>
     </div>
 
     <script type="module">
         import { SignalingSocket } from './js/websocket.js';
+        import { getStorage, setStorage } from './js/utils.js';
 
-        // UPDATE WITH YOUR CURRENT TUNNEL URL
-        const TUNNEL_URL = 'wss://4c3348dbca0325.lhr.life';
         const DEVICE_ID = 'dev-001';
-
+        const inputUrl = document.getElementById('agent-tunnel-input');
         const btnShare = document.getElementById('btn-share');
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
         const logBox = document.getElementById('log-box');
+
+        // Pre-fill URL
+        const savedUrl = getStorage('tunnelUrl') || 'ws://127.0.0.1:8080';
+        inputUrl.value = savedUrl;
 
         function log(msg) {
             const el = document.createElement('div');
@@ -87,79 +61,64 @@
 
         let localStream = null;
         let peerConnection = null;
-        const signaling = new SignalingSocket(TUNNEL_URL, 'agent', DEVICE_ID);
+        let signaling = null;
 
         btnShare.addEventListener('click', async () => {
+            let url = inputUrl.value.trim();
+            if (url.startsWith('https://')) url = url.replace('https://', 'wss://');
+            if (url.startsWith('http://')) url = url.replace('http://', 'ws://');
+            setStorage('tunnelUrl', url);
+
             try {
-                // Native Screen Capture via Browser (No Admin Rights needed!)
                 localStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { frameRate: 60, cursor: "always" },
+                    video: { frameRate: 60, cursor: 'always' },
                     audio: false
                 });
 
                 log('Screen capture authorized by user!');
                 statusDot.className = 'status-dot active';
-                statusText.innerText = 'Broadcasting Screen...';
+                statusText.innerText = 'Screen Live (Broadcasting)';
                 btnShare.disabled = true;
-                btnShare.innerText = 'Screen Active (Streaming)';
+                btnShare.innerText = 'Broadcasting Active';
 
-                // Connect to signaling server
-                signaling.connect();
-            } catch (err) {
-                log(`Authorization rejected: ${err.message}`);
-            }
-        });
+                signaling = new SignalingSocket(url, 'agent', DEVICE_ID);
 
-        signaling.onMessage = async (data) => {
-            if (data.type === 'webrtc_offer') {
-                log('Received WebRTC Offer from Controller!');
-                
-                peerConnection = new RTCPeerConnection({
-                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-                });
+                signaling.onMessage = async (data) => {
+                    if (data.type === 'webrtc_offer') {
+                        log('Received WebRTC Offer from Controller!');
+                        peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
 
-                // Attach screen tracks to WebRTC
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
+                        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-                // Gather ICE Candidates to send back
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        signaling.send({
-                            type: 'ice_candidate',
-                            targetId: data.fromId,
-                            candidate: event.candidate
-                        });
+                        peerConnection.onicecandidate = (event) => {
+                            if (event.candidate) {
+                                signaling.send({ type: 'ice_candidate', targetId: data.fromId, candidate: event.candidate });
+                            }
+                        };
+
+                        peerConnection.ondatachannel = (event) => {
+                            log('DataChannel connected! Remote input enabled.');
+                            event.channel.onmessage = (e) => {
+                                log(`Input received: ${e.data}`);
+                            };
+                        };
+
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                        const answer = await peerConnection.createAnswer();
+                        await peerConnection.setLocalDescription(answer);
+
+                        signaling.send({ type: 'webrtc_answer', targetId: data.fromId, sdp: answer });
+                        log('WebRTC Answer sent to Controller!');
+                    } else if (data.type === 'ice_candidate') {
+                        if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
                     }
                 };
 
-                // Listen for DataChannel (Mouse/Keyboard input commands)
-                peerConnection.ondatachannel = (event) => {
-                    log('DataChannel established with Controller!');
-                    const dc = event.channel;
-                    dc.onmessage = (e) => {
-                        log(`Remote Input received: ${e.data}`);
-                    };
-                };
-
-                // Set Remote Description (Offer) & Create Answer
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-
-                log('Created WebRTC Answer, sending to Controller...');
-                signaling.send({
-                    type: 'webrtc_answer',
-                    targetId: data.fromId,
-                    sdp: answer
-                });
-            } else if (data.type === 'ice_candidate') {
-                if (peerConnection) {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                }
+                signaling.connect();
+            } catch (err) {
+                log(`Capture rejected: ${err.message}`);
             }
-        };
+        });
     </script>
 </body>
 </html>
