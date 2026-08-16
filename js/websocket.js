@@ -43,7 +43,6 @@ export class SignalingSocket {
         }
     }
 
-    // Helper method specifically for WebRTC handshakes
     sendToAgent(data) {
         data.targetId = this.deviceId;
         this.send(data);
