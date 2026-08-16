@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'remote-desk-v1';
+const CACHE_NAME = 'remote-desk-v2'; // Bumped version to force cache refresh
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -22,6 +22,7 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', event => {
+    self.skipWaiting(); // Force activate immediately
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
             return cache.addAll(ASSETS_TO_CACHE);
@@ -42,9 +43,6 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
     event.respondWith(
-        caches.match(event.request).then(response => {
-            // Return cached version or fetch from network
-            return response || fetch(event.request);
-        })
+        fetch(event.request).catch(() => caches.match(event.request))
     );
 });
