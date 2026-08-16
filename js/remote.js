@@ -1,60 +1,99 @@
+FILE: js/remote.js
 import { getElement, getStorage } from './utils.js';
 import { isAuthenticated } from './auth.js';
 import { SignalingSocket } from './websocket.js';
 import { WebRTCConnection } from './webrtc.js';
 import { InputManager } from './input.js';
 
+// 1. Authentication Guard
 if (!isAuthenticated()) {
     window.location.replace('./login.html');
 }
 
+// 2. Parse URL Parameters
 const urlParams = new URLSearchParams(window.location.search);
 const deviceId = urlParams.get('id') || 'dev-001';
 const deviceName = urlParams.get('name') || 'Office-PC';
 
 getElement('session-name').innerText = `Session: ${deviceName}`;
 
+// 3. DOM Elements
 const videoElement = getElement('remote-video');
 const demoBadge = getElement('demo-badge');
 
-// Load Tunnel URL from Settings, or default to localhost
+// 4. Load Tunnel URL from Settings / LocalStorage
 const tunnelUrl = getStorage('tunnelUrl') || 'ws://127.0.0.1:8080';
-console.log(`[Remote] Using Signaling URL: ${tunnelUrl}`);
+console.log(`[Remote] Connecting to Signaling URL: ${tunnelUrl}`);
 
+// State instances
 let signaling = null;
 let webrtc = null;
 let inputMgr = null;
 let mockAnimationId = null;
 
+// ----------------------------------------------------
+// Core Session Initializer
+// ----------------------------------------------------
 function initSession() {
+    // Teardown any existing connections if reconnecting
     if (signaling) signaling.disconnect();
     if (webrtc) webrtc.close();
 
     signaling = new SignalingSocket(tunnelUrl, 'controller', deviceId);
     webrtc = new WebRTCConnection(signaling);
-    inputMgr = new InputManager(videoElement, webrtc);
 
+    // 5. Connect Input Engine to BOTH native Windows Agent & WebRTC DataChannel
+    inputMgr = new InputManager(videoElement, {
+        sendData: (payload) => {
+            // Send to Native Windows Agent via WebSocket (for physical cursor/keyboard control)
+            if (signaling) {
+                signaling.sendToAgent({
+                    type: 'remote_input',
+                    payload: payload
+                });
+            }
+            
+            // Also send over WebRTC P2P DataChannel if open
+            if (webrtc) {
+                webrtc.sendData(payload);
+            }
+        }
+    });
+
+    // 6. Real Stream Handler (Switches off Mock Mode when live video arrives)
     webrtc.onStream = (liveStream) => {
-        console.log('[Remote] LIVE stream attached!');
-        if (mockAnimationId) cancelAnimationFrame(mockAnimationId);
+        console.log('[Remote] LIVE remote screen attached successfully!');
+        
+        // Stop canvas animation
+        if (mockAnimationId) {
+            cancelAnimationFrame(mockAnimationId);
+            mockAnimationId = null;
+        }
         
         demoBadge.innerText = 'LIVE STREAM (60 FPS)';
         demoBadge.className = 'badge badge-success';
         videoElement.srcObject = liveStream;
     };
 
+    // 7. Signaling Message Router
     signaling.onMessage = (data) => {
-        if (data.type === 'webrtc_answer') webrtc.handleAnswer(data.sdp);
-        else if (data.type === 'ice_candidate') webrtc.handleIceCandidate(data.candidate);
+        if (data.type === 'webrtc_answer') {
+            webrtc.handleAnswer(data.sdp);
+        } else if (data.type === 'ice_candidate') {
+            webrtc.handleIceCandidate(data.candidate);
+        }
     };
 
     signaling.connect();
     webrtc.init();
 }
 
+// Start Session
 initSession();
 
-// Fallback Canvas Mock
+// ----------------------------------------------------
+// Fallback Canvas Mock Engine (Plays until Agent connects)
+// ----------------------------------------------------
 function startMockStream() {
     const canvas = document.createElement('canvas');
     canvas.width = 1920;
@@ -77,7 +116,7 @@ function startMockStream() {
         ctx.fillText(`Waiting for live connection to: ${deviceName}...`, 350, 280);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '22px Arial';
-        ctx.fillText('Open agent.html on the remote computer and authorize screen sharing.', 350, 340);
+        ctx.fillText('Open agent.html on the target computer and click "Authorize & Share Screen".', 350, 340);
         
         ctx.fillStyle = '#3b82f6';
         ctx.beginPath();
@@ -92,73 +131,122 @@ function startMockStream() {
     videoElement.srcObject = canvas.captureStream(30);
     videoElement.className = 'scale-fit';
 }
+
 startMockStream();
 
-// ==========================================
-// TOOLBAR BUTTONS LOGIC
-// ==========================================
+// ====================================================
+// TOOLBAR BUTTONS & CONTROLS
+// ====================================================
 
 // 1. Mouse Toggle Button
 const btnMouse = getElement('btn-mouse');
-btnMouse.addEventListener('click', () => {
-    btnMouse.classList.toggle('active');
-    const enabled = btnMouse.classList.contains('active');
-    inputMgr.toggleMouse(enabled);
-});
+if (btnMouse) {
+    btnMouse.addEventListener('click', () => {
+        btnMouse.classList.toggle('active');
+        const enabled = btnMouse.classList.contains('active');
+        if (inputMgr) inputMgr.toggleMouse(enabled);
+    });
+}
 
 // 2. Keyboard Toggle Button
 const btnKeyboard = getElement('btn-keyboard');
-btnKeyboard.addEventListener('click', () => {
-    btnKeyboard.classList.toggle('active');
-    const enabled = btnKeyboard.classList.contains('active');
-    inputMgr.toggleKeyboard(enabled);
-});
+if (btnKeyboard) {
+    btnKeyboard.addEventListener('click', () => {
+        btnKeyboard.classList.toggle('active');
+        const enabled = btnKeyboard.classList.contains('active');
+        if (inputMgr) inputMgr.toggleKeyboard(enabled);
+    });
+}
 
-// 3. Send Clipboard to Remote
-getElement('btn-clipboard').addEventListener('click', async () => {
-    try {
-        const text = await navigator.clipboard.readText();
-        webrtc.sendData({ type: 'clipboard_paste', text });
-        alert(`Sent clipboard content to remote: "${text.substring(0, 30)}..."`);
-    } catch {
-        const text = prompt('Enter text to paste into remote computer:');
-        if (text) webrtc.sendData({ type: 'clipboard_paste', text });
-    }
-});
+// 3. Send Clipboard to Remote Machine
+const btnClipboard = getElement('btn-clipboard');
+if (btnClipboard) {
+    btnClipboard.addEventListener('click', async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (signaling) {
+                signaling.sendToAgent({
+                    type: 'remote_input',
+                    payload: { type: 'clipboard_paste', text }
+                });
+            }
+            alert(`Pasted clipboard content to remote PC: "${text.substring(0, 30)}..."`);
+        } catch {
+            const text = prompt('Enter text to paste into remote computer:');
+            if (text && signaling) {
+                signaling.sendToAgent({
+                    type: 'remote_input',
+                    payload: { type: 'clipboard_paste', text }
+                });
+            }
+        }
+    });
+}
 
 // 4. Send Ctrl+Alt+Del Macro
-getElement('btn-cad').addEventListener('click', () => {
-    webrtc.sendData({ type: 'macro_cad', action: 'ctrl_alt_del' });
-    alert('Sent Ctrl+Alt+Del signal to remote agent!');
-});
+const btnCad = getElement('btn-cad');
+if (btnCad) {
+    btnCad.addEventListener('click', () => {
+        if (signaling) {
+            signaling.sendToAgent({
+                type: 'remote_input',
+                payload: { type: 'macro', action: 'ctrl_alt_del' }
+            });
+        }
+        alert('Sent Ctrl+Alt+Del signal to remote agent!');
+    });
+}
 
-// 5. Scale Mode (Fit Screen vs 100% Actual Size)
-getElement('select-scale').addEventListener('change', (e) => {
-    videoElement.className = e.target.value === 'fit' ? 'scale-fit' : 'scale-actual';
-});
+// 5. Display Scaling Mode (Fit Screen vs 100% Actual Size)
+const selectScale = getElement('select-scale');
+if (selectScale) {
+    selectScale.addEventListener('change', (e) => {
+        videoElement.className = e.target.value === 'fit' ? 'scale-fit' : 'scale-actual';
+    });
+}
 
-// 6. Quality Dropdown
-getElement('select-quality').addEventListener('change', (e) => {
-    webrtc.sendData({ type: 'quality_change', quality: e.target.value });
-});
+// 6. Stream Quality Selector
+const selectQuality = getElement('select-quality');
+if (selectQuality) {
+    selectQuality.addEventListener('change', (e) => {
+        if (signaling) {
+            signaling.sendToAgent({
+                type: 'remote_input',
+                payload: { type: 'setting_change', setting: 'quality', value: e.target.value }
+            });
+        }
+    });
+}
 
-// 7. Fullscreen Button
-getElement('btn-fullscreen').addEventListener('click', () => {
-    const wrapper = getElement('screen-wrapper');
-    if (!document.fullscreenElement) wrapper.requestFullscreen();
-    else document.exitFullscreen();
-});
+// 7. Fullscreen Toggle
+const btnFullscreen = getElement('btn-fullscreen');
+if (btnFullscreen) {
+    btnFullscreen.addEventListener('click', () => {
+        const wrapper = getElement('screen-wrapper');
+        if (!document.fullscreenElement) {
+            wrapper.requestFullscreen().catch(err => console.error('Fullscreen error:', err));
+        } else {
+            document.exitFullscreen();
+        }
+    });
+}
 
 // 8. Reconnect Button
-getElement('btn-reconnect').addEventListener('click', () => {
-    demoBadge.innerText = 'RECONNECTING...';
-    demoBadge.className = 'badge badge-warning';
-    initSession();
-});
+const btnReconnect = getElement('btn-reconnect');
+if (btnReconnect) {
+    btnReconnect.addEventListener('click', () => {
+        demoBadge.innerText = 'RECONNECTING...';
+        demoBadge.className = 'badge badge-warning';
+        initSession();
+    });
+}
 
 // 9. Disconnect Button
-getElement('btn-disconnect').addEventListener('click', () => {
-    if (signaling) signaling.disconnect();
-    if (webrtc) webrtc.close();
-    window.location.replace('./dashboard.html');
-});
+const btnDisconnect = getElement('btn-disconnect');
+if (btnDisconnect) {
+    btnDisconnect.addEventListener('click', () => {
+        if (signaling) signaling.disconnect();
+        if (webrtc) webrtc.close();
+        window.location.replace('./dashboard.html');
+    });
+}
