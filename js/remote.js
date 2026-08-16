@@ -19,7 +19,7 @@ getElement('session-name').innerText = `Session: ${deviceName}`;
 
 // System setup
 const videoElement = getElement('remote-video');
-const signaling = new SignalingSocket('wss://mock-server.local/ws');
+const signaling = new SignalingSocket('wss://629f545e953160.lhr.life', 'controller', deviceId);
 const webrtc = new WebRTCConnection(signaling);
 const inputMgr = new InputManager(videoElement, webrtc);
 
