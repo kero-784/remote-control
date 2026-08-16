@@ -1,6 +1,6 @@
-FILE: css/remote.css
 .remote-body {
-    overflow: hidden; /* Prevent scrolling during session */
+    overflow: hidden;
+    background: #000000;
 }
 
 .remote-container {
@@ -11,66 +11,88 @@ FILE: css/remote.css
 }
 
 .toolbar {
-    height: 50px;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
+    height: 56px;
+    background: #1e2430;
+    border-bottom: 2px solid #334155;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 1rem;
+    padding: 0 1.2rem;
     z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 .toolbar-group {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
 }
 
-.session-name { font-weight: bold; margin-right: 1rem; }
+.session-name { 
+    font-weight: 700; 
+    color: #ffffff;
+    font-size: 1rem;
+    margin-right: 0.5rem;
+}
 
 .controls {
     flex: 1;
     justify-content: center;
 }
 
+/* HIGH-VISIBILITY BUTTONS */
 .tool-btn {
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    padding: 0.3rem 0.6rem;
-    border-radius: 4px;
+    background: #2a3342;
+    color: #ffffff;
+    border: 1px solid #475569;
+    padding: 0.45rem 0.8rem;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
 }
-.tool-btn:hover { background: var(--bg-hover); color: var(--text-main); }
-.tool-btn.active { background: rgba(52, 152, 219, 0.2); border-color: var(--primary); color: var(--primary); }
+.tool-btn:hover { 
+    background: #3b4758; 
+    border-color: #94a3b8; 
+}
+.tool-btn.active { 
+    background: #2563eb; 
+    border-color: #60a5fa; 
+    color: #ffffff;
+    box-shadow: 0 0 8px rgba(37, 99, 235, 0.6);
+}
 
 .tool-select {
-    background: var(--bg-dark);
-    color: var(--text-main);
-    border: 1px solid var(--border);
-    padding: 0.3rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
+    background: #2a3342;
+    color: #ffffff;
+    border: 1px solid #475569;
+    padding: 0.45rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tool-select:focus {
+    outline: none;
+    border-color: #60a5fa;
 }
 
 .screen-wrapper {
     flex: 1;
-    background: #000;
+    background: #090a0f;
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
-    overflow: auto; /* Allow scroll if actual size is larger than viewport */
+    overflow: auto;
 }
 
 #remote-video {
-    box-shadow: 0 0 20px rgba(0,0,0,0.8);
-    background: #111; /* Fallback before stream loads */
+    box-shadow: 0 0 30px rgba(0,0,0,0.9);
+    background: #111;
 }
 
-/* Scaling classes */
 .scale-fit {
     width: 100%;
     height: 100%;
@@ -78,7 +100,6 @@ FILE: css/remote.css
 }
 
 .scale-actual {
-    /* Dimensions derived from stream, not constrained by flex */
     max-width: none;
     max-height: none;
 }
