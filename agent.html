@@ -3,31 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Agent - Broadcaster</title>
+    <title>Kero Remote Desk - P2P Host</title>
     <link rel="stylesheet" href="css/main.css">
     <style>
-        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #090a0f; }
-        .agent-card { background: #1a1d24; padding: 2.5rem; border-radius: 12px; border: 1px solid #334155; width: 100%; max-width: 520px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #0e1117; }
+        .agent-card { background: #161b22; padding: 2.5rem; border-radius: 12px; border: 1px solid #30363d; width: 100%; max-width: 520px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
         .status-dot { width: 12px; height: 12px; background: #eab308; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .status-dot.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-        .driver-badge { font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 4px; display: inline-block; margin-top: 0.5rem; }
+        .driver-badge { font-size: 0.8rem; padding: 0.35rem 0.7rem; border-radius: 4px; display: inline-block; margin-top: 0.5rem; }
         .driver-ok { background: #14532d; color: #4ade80; border: 1px solid #22c55e; }
         .driver-wait { background: #78350f; color: #fde047; border: 1px solid #eab308; }
-        .log-box { background: #0f1117; padding: 1rem; border-radius: 6px; font-family: monospace; font-size: 0.8rem; color: #94a3b8; height: 150px; overflow-y: auto; margin-top: 1.5rem; border: 1px solid #334155; }
+        .log-box { background: #0a0c10; padding: 1rem; border-radius: 6px; font-family: Consolas, monospace; font-size: 0.8rem; color: #8b949e; height: 160px; overflow-y: auto; margin-top: 1.5rem; border: 1px solid #30363d; }
     </style>
 </head>
 <body>
     <div class="agent-card">
-        <h2 style="margin-bottom: 0.5rem;">Windows Remote Agent</h2>
-        <p style="color: #94a3b8; font-size: 0.9rem;">Device: <strong style="color: #fff;">Office-PC</strong> | ID: <strong style="color: #38bdf8;">dev-001</strong></p>
+        <h2 style="margin-bottom: 0.5rem; color: #38bdf8;">⚡ Kero Remote Desk</h2>
+        <p style="color: #8b949e; font-size: 0.9rem;">Device ID: <strong style="color: #fff;" id="display-id">dev-001</strong> (Direct WebRTC P2P)</p>
         
         <div style="margin: 1rem 0;">
             <div id="driver-status" class="driver-badge driver-wait">Native Input Driver: Connecting...</div>
-        </div>
-
-        <div style="margin: 1.2rem 0; text-align: left;">
-            <label style="font-size: 0.85rem; color: #cbd5e1; display: block; margin-bottom: 0.3rem;">Signaling URL:</label>
-            <input type="text" id="agent-tunnel-input" placeholder="wss://xxxxxx.lhr.life" style="width: 100%; padding: 0.6rem; background: #0f1117; border: 1px solid #334155; color: #fff; border-radius: 6px;">
         </div>
 
         <div style="margin: 1rem 0;">
@@ -35,29 +30,27 @@
             <span id="status-text" style="font-weight: 600;">Ready to Authorize</span>
         </div>
 
-        <button id="btn-share" class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-size: 1rem;">
-            🛡️ Authorize & Start Full Control
+        <button id="btn-share" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-size: 1.05rem; font-weight: bold; background: #238636; border: none; cursor: pointer;">
+            🛡️ Authorize & Start 60 FPS P2P Session
         </button>
 
         <div class="log-box" id="log-box">
-            <div>[Agent] Standing by...</div>
+            <div>[P2P] STUN NAT Traversal Engine Ready.</div>
         </div>
     </div>
 
     <script type="module">
         import { SignalingSocket } from './js/websocket.js';
-        import { getStorage, setStorage } from './js/utils.js';
 
+        // Hardcoded Cloud Signaling URL (Used only for the initial 2-second handshake)
+        const SIGNALING_URL = 'wss://wise-starling-6165.kero-784.deno.net';
         const DEVICE_ID = 'dev-001';
-        const inputUrl = document.getElementById('agent-tunnel-input');
+
         const btnShare = document.getElementById('btn-share');
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
         const driverStatus = document.getElementById('driver-status');
         const logBox = document.getElementById('log-box');
-
-        const savedUrl = getStorage('tunnelUrl') || 'ws://127.0.0.1:8080';
-        inputUrl.value = savedUrl;
 
         function log(msg) {
             const el = document.createElement('div');
@@ -66,21 +59,21 @@
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // 1. Connect to Local Native Input Driver (agent.js)
+        // 1. Connect to Local user32.dll Input Driver (agent.js)
         let localDriverWs = null;
         function connectLocalDriver() {
             localDriverWs = new WebSocket('ws://127.0.0.1:9999');
             
             localDriverWs.onopen = () => {
                 driverStatus.className = 'driver-badge driver-ok';
-                driverStatus.innerText = '✓ Native Input Driver: Connected & Active';
-                log('Native Windows Input Driver connected on port 9999.');
+                driverStatus.innerText = '✓ Native Input Driver: Active on Port 9999';
+                log('Native Input Driver connected.');
             };
 
             localDriverWs.onclose = () => {
                 driverStatus.className = 'driver-badge driver-wait';
-                driverStatus.innerText = '⚠ Native Input Driver: Disconnected (Run agent.js)';
-                setTimeout(connectLocalDriver, 3000); // Auto reconnect
+                driverStatus.innerText = '⚠ Native Input Driver: Disconnected (Run node agent.js)';
+                setTimeout(connectLocalDriver, 3000);
             };
 
             localDriverWs.onerror = () => {};
@@ -88,69 +81,94 @@
 
         connectLocalDriver();
 
-        // 2. WebRTC & Screen Sharing Setup
+        // 2. Multi-STUN WebRTC Screen Broadcaster
         let localStream = null;
         let peerConnection = null;
-        let signaling = null;
+        const signaling = new SignalingSocket(SIGNALING_URL, 'agent', DEVICE_ID);
+
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun.cloudflare.com:3478' }
+            ]
+        };
 
         btnShare.addEventListener('click', async () => {
-            let url = inputUrl.value.trim();
-            if (url.startsWith('https://')) url = url.replace('https://', 'wss://');
-            if (url.startsWith('http://')) url = url.replace('http://', 'ws://');
-            setStorage('tunnelUrl', url);
-
             try {
+                // Native Hardware 60 FPS Screen Capture (GPU Accelerated)
                 localStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { frameRate: 60, cursor: 'always' },
+                    video: { frameRate: 60, cursor: 'always', width: { ideal: 1920 }, height: { ideal: 1080 } },
                     audio: false
                 });
 
-                log('Screen capture authorized!');
+                log('Screen capture authorized by user.');
                 statusDot.className = 'status-dot active';
-                statusText.innerText = 'Remote Session Ready';
+                statusText.innerText = 'P2P Broadcaster Active (60 FPS)';
                 btnShare.disabled = true;
-                btnShare.innerText = 'Session Active (Control Enabled)';
-
-                signaling = new SignalingSocket(url, 'agent', DEVICE_ID);
-
-                signaling.onMessage = async (data) => {
-                    if (data.type === 'webrtc_offer') {
-                        log('WebRTC Offer received!');
-                        peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-
-                        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-                        peerConnection.onicecandidate = (event) => {
-                            if (event.candidate) {
-                                signaling.send({ type: 'ice_candidate', targetId: data.fromId, candidate: event.candidate });
-                            }
-                        };
-
-                        // 3. Forward DataChannel Mouse/Keyboard Inputs to Local Driver
-                        peerConnection.ondatachannel = (event) => {
-                            log('DataChannel connected! Full remote control active.');
-                            event.channel.onmessage = (e) => {
-                                if (localDriverWs && localDriverWs.readyState === WebSocket.OPEN) {
-                                    localDriverWs.send(e.data); // Physically move the Windows mouse!
-                                }
-                            };
-                        };
-
-                        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                        const answer = await peerConnection.createAnswer();
-                        await peerConnection.setLocalDescription(answer);
-
-                        signaling.send({ type: 'webrtc_answer', targetId: data.fromId, sdp: answer });
-                    } else if (data.type === 'ice_candidate') {
-                        if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    }
-                };
+                btnShare.innerText = 'Broadcasting Active';
 
                 signaling.connect();
             } catch (err) {
                 log(`Capture rejected: ${err.message}`);
             }
         });
+
+        signaling.onMessage = async (data) => {
+            if (data.type === 'webrtc_offer') {
+                log('Received WebRTC Offer from Controller!');
+                peerConnection = new RTCPeerConnection(rtcConfig);
+
+                // Add 60 FPS Video Track to WebRTC
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Gather STUN ICE Candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        signaling.send({
+                            type: 'ice_candidate',
+                            targetId: data.fromId,
+                            candidate: event.candidate
+                        });
+                    }
+                };
+
+                peerConnection.oniceconnectionstatechange = () => {
+                    log(`Direct ICE State: ${peerConnection.iceConnectionState}`);
+                };
+
+                // Listen for Direct P2P DataChannels (Mouse & Keyboard)
+                peerConnection.ondatachannel = (event) => {
+                    const channel = event.channel;
+                    log(`Direct P2P DataChannel opened: ${channel.label}`);
+
+                    channel.onmessage = (e) => {
+                        // Forward input directly to user32.dll driver with 0ms latency!
+                        if (localDriverWs && localDriverWs.readyState === WebSocket.OPEN) {
+                            localDriverWs.send(e.data);
+                        }
+                    };
+                };
+
+                // Create WebRTC Answer
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                log('Sent WebRTC Answer. Establishing direct P2P hole-punched link...');
+                signaling.send({
+                    type: 'webrtc_answer',
+                    targetId: data.fromId,
+                    sdp: answer
+                });
+            } else if (data.type === 'ice_candidate') {
+                if (peerConnection) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                }
+            }
+        };
     </script>
 </body>
 </html>
