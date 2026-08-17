@@ -1,17 +1,12 @@
-const CACHE_NAME = 'remote-desk-v3'; // BUMPED TO V3 TO FORCE UPDATE
+const CACHE_NAME = 'kero-desk-v5'; // BUMPED TO V5 TO PURGE OLD CACHE
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
-    './login.html',
-    './dashboard.html',
     './remote.html',
+    './agent.html',
     './css/main.css',
-    './css/login.css',
-    './css/dashboard.css',
     './css/remote.css',
     './js/app.js',
-    './js/auth.js',
-    './js/dashboard.js',
     './js/remote.js',
     './js/websocket.js',
     './js/webrtc.js',
