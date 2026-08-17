@@ -3,53 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Desk - Active Session</title>
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/remote.css">
-    <link rel="manifest" href="manifest.json">
+    <title>Kero Remote Session</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #000; overflow: hidden; height: 100vh; width: 100vw; display: flex; flex-direction: column; }
+        .toolbar { height: 45px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; padding: 0 1rem; color: #fff; font-family: sans-serif; font-size: 0.85rem; z-index: 100; }
+        .tool-btn { background: #21262d; border: 1px solid #30363d; color: #fff; padding: 0.35rem 0.7rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        .tool-btn:hover { background: #30363d; }
+        .btn-danger { background: #da3633; border: none; }
+        .screen-container { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; background: #000; overflow: hidden; }
+        #remote-video { width: 100%; height: 100%; object-fit: contain; cursor: crosshair; }
+    </style>
 </head>
-<body class="remote-body">
-    <div class="remote-container">
-        <!-- Interactive Toolbar -->
-        <div class="toolbar" id="toolbar">
-            <div class="toolbar-group">
-                <span class="session-name" id="session-name">Session: Office-PC</span>
-                <span class="badge badge-warning" id="demo-badge">CONNECTING...</span>
-            </div>
-            
-            <div class="toolbar-group controls">
-                <button class="tool-btn active" id="btn-mouse" title="Toggle Mouse Control">🖱️ Mouse</button>
-                <button class="tool-btn active" id="btn-keyboard" title="Toggle Keyboard Control">⌨️ Keyboard</button>
-                <button class="tool-btn" id="btn-clipboard" title="Send Clipboard to Remote">📋 Clipboard</button>
-                <button class="tool-btn" id="btn-cad" title="Send Ctrl+Alt+Del">⚡ Ctrl+Alt+Del</button>
-                
-                <select id="select-quality" class="tool-select" title="Stream Video Quality">
-                    <option value="1080p">1080p (High)</option>
-                    <option value="720p">720p (Medium)</option>
-                    <option value="480p">480p (Fast)</option>
-                </select>
-                
-                <select id="select-scale" class="tool-select" title="Display Scaling Mode">
-                    <option value="fit">Fit Screen</option>
-                    <option value="actual">Actual Size (100%)</option>
-                </select>
-
-                <button class="tool-btn" id="btn-fullscreen" title="Full Screen">⛶ Fullscreen</button>
-                <button class="tool-btn" id="btn-reconnect" title="Restart WebRTC Connection" style="color: #60a5fa;">🔄 Reconnect</button>
-            </div>
-            
-            <div class="toolbar-group">
-                <button class="btn btn-danger" id="btn-disconnect">Disconnect</button>
-            </div>
+<body>
+    <div class="toolbar">
+        <div>
+            <span>Target: <strong id="target-title" style="color: #38bdf8;">Connecting...</strong></span>
+            <span id="status-badge" style="margin-left: 1rem; color: #4ade80; font-weight: bold;">● P2P Connecting...</span>
         </div>
-
-        <!-- Remote Screen Viewport -->
-        <div class="screen-wrapper" id="screen-wrapper">
-            <video id="remote-video" autoplay playsinline muted></video>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="tool-btn" id="btn-full">⛶ Fullscreen</button>
+            <button class="tool-btn btn-danger" id="btn-exit">Disconnect</button>
         </div>
     </div>
-    
-    <script type="module" src="js/app.js"></script>
-    <script type="module" src="js/remote.js"></script>
+
+    <div class="screen-container" id="screen-box">
+        <video id="remote-video" autoplay playsinline></video>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawTarget = urlParams.get('id') || '';
+        const targetPeerId = rawTarget.startsWith('kero-') ? rawTarget : 'kero-' + rawTarget;
+
+        document.getElementById('target-title').innerText = rawTarget;
+        const video = document.getElementById('remote-video');
+        const statusBadge = document.getElementById('status-badge');
+        const screenBox = document.getElementById('screen-box');
+
+        const peer = new Peer();
+        let dataConn = null;
+
+        peer.on('open', () => {
+            // 1. Establish DataChannel for instant mouse/keyboard
+            dataConn = peer.connect(targetPeerId);
+            dataConn.on('open', () => {
+                statusBadge.innerText = '● P2P Direct (60 FPS)';
+            });
+
+            // 2. Request Hardware 60 FPS Video Stream
+            const call = peer.call(targetPeerId, createDummyStream());
+            call.on('stream', (remoteStream) => {
+                video.srcObject = remoteStream;
+            });
+        });
+
+        function createDummyStream() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1; canvas.height = 1;
+            return canvas.captureStream(1);
+        }
+
+        // Mouse Normalization & Instant Dispatch
+        function sendMouse(type, e) {
+            if (!dataConn || !dataConn.open) return;
+            const rect = video.getBoundingClientRect();
+            let x = (e.clientX - rect.left) / rect.width;
+            let y = (e.clientY - rect.top) / rect.height;
+            x = Math.max(0, Math.min(1, x));
+            y = Math.max(0, Math.min(1, y));
+
+            dataConn.send(JSON.stringify({
+                type: type,
+                x: x.toFixed(4),
+                y: y.toFixed(4),
+                button: e.button === 2 ? 'right' : 'left'
+            }));
+        }
+
+        video.addEventListener('mousemove', (e) => sendMouse('mouse_move', e));
+        video.addEventListener('mousedown', (e) => sendMouse('mouse_down', e));
+        video.addEventListener('mouseup', (e) => sendMouse('mouse_up', e));
+        video.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        window.addEventListener('keydown', (e) => {
+            if (!dataConn || !dataConn.open) return;
+            if (e.key.length === 1) {
+                dataConn.send(JSON.stringify({ type: 'key_down', key: e.key }));
+            }
+        });
+
+        document.getElementById('btn-full').addEventListener('click', () => {
+            if (!document.fullscreenElement) screenBox.requestFullscreen();
+            else document.exitFullscreen();
+        });
+
+        document.getElementById('btn-exit').addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+    </script>
 </body>
 </html>
