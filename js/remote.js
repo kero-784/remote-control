@@ -5,7 +5,7 @@ import { InputManager } from './input.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const deviceId = urlParams.get('id') || 'dev-001';
-const deviceName = urlParams.get('name') || 'Office-PC';
+const deviceName = urlParams.get('name') || 'Remote-PC';
 
 getElement('session-name').innerText = `Session: ${deviceName}`;
 
@@ -13,13 +13,10 @@ const videoElement = getElement('remote-video');
 const screenWrapper = getElement('screen-wrapper');
 const demoBadge = getElement('demo-badge');
 
-// Hardcoded Cloud Signaling URL
-const SIGNALING_URL = 'wss://wise-starling-6165.kero-784.deno.net';
-
-const signaling = new SignalingSocket(SIGNALING_URL, 'controller', deviceId);
+// Connect to the Public Free WebRTC Broker (No Deno!)
+const signaling = new SignalingSocket('', 'controller', deviceId);
 const webrtc = new WebRTCConnection(signaling);
 
-// Dispatch mouse/keyboard directly over peer-to-peer UDP
 const inputMgr = new InputManager(screenWrapper, {
     sendData: (payload) => {
         webrtc.sendData(payload);
@@ -28,9 +25,9 @@ const inputMgr = new InputManager(screenWrapper, {
 
 let mockAnimationId = null;
 
-// 1. Direct WebRTC Hardware Stream Receiver (60 FPS 1080p)
+// Direct WebRTC 60 FPS Video Stream Receiver
 webrtc.onStream = (liveStream) => {
-    console.log('[P2P] Attaching Direct Hardware Video Stream to Screen!');
+    console.log('[P2P] LIVE 60 FPS Hardware Screen Stream Attached!');
     
     if (mockAnimationId) {
         cancelAnimationFrame(mockAnimationId);
@@ -46,7 +43,6 @@ webrtc.onP2PConnected = () => {
     console.log('⚡ Direct P2P Hole-Punch Connection Active!');
 };
 
-// 2. Signaling Message Router
 signaling.onMessage = (data) => {
     if (data.type === 'webrtc_answer') {
         webrtc.handleAnswer(data.sdp);
@@ -58,7 +54,7 @@ signaling.onMessage = (data) => {
 signaling.connect();
 webrtc.init();
 
-// Fallback animation while STUN hole punches
+// Fallback animation while STUN connects
 function startMockStream() {
     const canvas = document.createElement('canvas');
     canvas.width = 1920;
@@ -78,7 +74,7 @@ function startMockStream() {
         
         ctx.fillStyle = '#ffffff';
         ctx.font = '30px Segoe UI';
-        ctx.fillText(`Connecting P2P to: ${deviceName} (${deviceId})...`, 350, 280);
+        ctx.fillText(`Connecting to Host: ${deviceId}...`, 350, 280);
         
         ctx.fillStyle = '#8b949e';
         ctx.font = '20px Segoe UI';
@@ -99,7 +95,7 @@ function startMockStream() {
 
 startMockStream();
 
-// Toolbar Controls
+// Controls
 getElement('btn-fullscreen').addEventListener('click', () => {
     if (!document.fullscreenElement) screenWrapper.requestFullscreen();
     else document.exitFullscreen();
