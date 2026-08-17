@@ -19,7 +19,7 @@
 <body>
     <div class="agent-card">
         <h2 style="margin-bottom: 0.5rem; color: #38bdf8;">⚡ Kero Remote Desk</h2>
-        <p style="color: #8b949e; font-size: 0.9rem;">Device ID: <strong style="color: #fff;" id="display-id">dev-001</strong> (Direct WebRTC P2P)</p>
+        <p style="color: #8b949e; font-size: 0.9rem;">Device ID: <strong style="color: #fff;">dev-001</strong> (Direct WebRTC P2P)</p>
         
         <div style="margin: 1rem 0;">
             <div id="driver-status" class="driver-badge driver-wait">Native Input Driver: Connecting...</div>
@@ -42,8 +42,6 @@
     <script type="module">
         import { SignalingSocket } from './js/websocket.js';
 
-        // Hardcoded Cloud Signaling URL (Used only for the initial 2-second handshake)
-        const SIGNALING_URL = 'wss://wise-starling-6165.kero-784.deno.net';
         const DEVICE_ID = 'dev-001';
 
         const btnShare = document.getElementById('btn-share');
@@ -59,32 +57,27 @@
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // 1. Connect to Local user32.dll Input Driver (agent.js)
+        // Connect to local mouse/keyboard driver
         let localDriverWs = null;
         function connectLocalDriver() {
             localDriverWs = new WebSocket('ws://127.0.0.1:9999');
-            
             localDriverWs.onopen = () => {
                 driverStatus.className = 'driver-badge driver-ok';
                 driverStatus.innerText = '✓ Native Input Driver: Active on Port 9999';
                 log('Native Input Driver connected.');
             };
-
             localDriverWs.onclose = () => {
                 driverStatus.className = 'driver-badge driver-wait';
                 driverStatus.innerText = '⚠ Native Input Driver: Disconnected (Run node agent.js)';
                 setTimeout(connectLocalDriver, 3000);
             };
-
             localDriverWs.onerror = () => {};
         }
-
         connectLocalDriver();
 
-        // 2. Multi-STUN WebRTC Screen Broadcaster
         let localStream = null;
         let peerConnection = null;
-        const signaling = new SignalingSocket(SIGNALING_URL, 'agent', DEVICE_ID);
+        const signaling = new SignalingSocket('', 'agent', DEVICE_ID);
 
         const rtcConfig = {
             iceServers: [
@@ -96,13 +89,12 @@
 
         btnShare.addEventListener('click', async () => {
             try {
-                // Native Hardware 60 FPS Screen Capture (GPU Accelerated)
                 localStream = await navigator.mediaDevices.getDisplayMedia({
                     video: { frameRate: 60, cursor: 'always', width: { ideal: 1920 }, height: { ideal: 1080 } },
                     audio: false
                 });
 
-                log('Screen capture authorized by user.');
+                log('Screen capture authorized.');
                 statusDot.className = 'status-dot active';
                 statusText.innerText = 'P2P Broadcaster Active (60 FPS)';
                 btnShare.disabled = true;
@@ -119,17 +111,14 @@
                 log('Received WebRTC Offer from Controller!');
                 peerConnection = new RTCPeerConnection(rtcConfig);
 
-                // Add 60 FPS Video Track to WebRTC
                 localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, localStream);
                 });
 
-                // Gather STUN ICE Candidates
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        signaling.send({
+                        signaling.sendToController(DEVICE_ID, {
                             type: 'ice_candidate',
-                            targetId: data.fromId,
                             candidate: event.candidate
                         });
                     }
@@ -139,28 +128,24 @@
                     log(`Direct ICE State: ${peerConnection.iceConnectionState}`);
                 };
 
-                // Listen for Direct P2P DataChannels (Mouse & Keyboard)
                 peerConnection.ondatachannel = (event) => {
                     const channel = event.channel;
                     log(`Direct P2P DataChannel opened: ${channel.label}`);
 
                     channel.onmessage = (e) => {
-                        // Forward input directly to user32.dll driver with 0ms latency!
                         if (localDriverWs && localDriverWs.readyState === WebSocket.OPEN) {
                             localDriverWs.send(e.data);
                         }
                     };
                 };
 
-                // Create WebRTC Answer
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
 
-                log('Sent WebRTC Answer. Establishing direct P2P hole-punched link...');
-                signaling.send({
+                log('Sent WebRTC Answer. Direct P2P link establishing...');
+                signaling.sendToController(DEVICE_ID, {
                     type: 'webrtc_answer',
-                    targetId: data.fromId,
                     sdp: answer
                 });
             } else if (data.type === 'ice_candidate') {
