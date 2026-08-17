@@ -1,6 +1,4 @@
-
-// Browser Input Capture System (Phase 5)
-
+// High-Precision Coordinate Normalizer
 export class InputManager {
     constructor(targetElement, webrtcConnection) {
         this.target = targetElement;
@@ -15,32 +13,61 @@ export class InputManager {
     toggleKeyboard(state) { this.keyboardEnabled = state; }
 
     bindEvents() {
-        // Mouse Events
         this.target.addEventListener('mousemove', (e) => this.handleMouse('mouse_move', e));
         this.target.addEventListener('mousedown', (e) => this.handleMouse('mouse_down', e));
         this.target.addEventListener('mouseup', (e) => this.handleMouse('mouse_up', e));
         this.target.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
         this.target.addEventListener('dblclick', (e) => this.handleMouse('double_click', e));
         
-        // Prevent context menu on right click
         this.target.addEventListener('contextmenu', e => e.preventDefault());
 
-        // Keyboard Events (Bound to window but check focus/hover state ideally)
         window.addEventListener('keydown', (e) => this.handleKey('key_down', e));
         window.addEventListener('keyup', (e) => this.handleKey('key_up', e));
     }
 
+    // Mathematical Letterbox & Aspect-Ratio Compensation
     getNormalizedCoords(e) {
         const rect = this.target.getBoundingClientRect();
-        // Calculate coordinate 0.0 to 1.0 based on element bounds
-        let x = (e.clientX - rect.left) / rect.width;
-        let y = (e.clientY - rect.top) / rect.height;
         
-        // Clamp values just in case
-        x = Math.max(0, Math.min(1, x));
-        y = Math.max(0, Math.min(1, y));
-        
-        return { x: x.toFixed(4), y: y.toFixed(4) };
+        // Find the rendered element (either <img> or <video>)
+        const activeMedia = this.target.querySelector('img[style*="display: block"]') || 
+                            this.target.querySelector('video') || 
+                            this.target;
+
+        const mediaWidth = activeMedia.naturalWidth || activeMedia.videoWidth || 1920;
+        const mediaHeight = activeMedia.naturalHeight || activeMedia.videoHeight || 1080;
+
+        const containerWidth = rect.width;
+        const containerHeight = rect.height;
+
+        const containerRatio = containerWidth / containerHeight;
+        const mediaRatio = mediaWidth / mediaHeight;
+
+        let renderedW, renderedH, offsetX = 0, offsetY = 0;
+
+        if (containerRatio > mediaRatio) {
+            // Pillarboxed (Black bars on left & right)
+            renderedH = containerHeight;
+            renderedW = containerHeight * mediaRatio;
+            offsetX = (containerWidth - renderedW) / 2;
+        } else {
+            // Letterboxed (Black bars on top & bottom)
+            renderedW = containerWidth;
+            renderedH = containerWidth / mediaRatio;
+            offsetY = (containerHeight - renderedH) / 2;
+        }
+
+        const clickX = e.clientX - rect.left - offsetX;
+        const clickY = e.clientY - rect.top - offsetY;
+
+        let normX = clickX / renderedW;
+        let normY = clickY / renderedH;
+
+        // Clamp between 0.0 and 1.0
+        normX = Math.max(0, Math.min(1, normX));
+        normY = Math.max(0, Math.min(1, normY));
+
+        return { x: normX.toFixed(5), y: normY.toFixed(5) };
     }
 
     getMouseButton(e) {
@@ -67,7 +94,7 @@ export class InputManager {
 
     handleWheel(e) {
         if (!this.mouseEnabled) return;
-        e.preventDefault(); // Prevent page scroll
+        e.preventDefault();
         
         this.webrtc.sendData({
             type: 'mouse_wheel',
@@ -78,8 +105,6 @@ export class InputManager {
 
     handleKey(type, e) {
         if (!this.keyboardEnabled) return;
-        
-        // Don't intercept F5, F12, etc unless strictly necessary
         if (e.key === 'F5' || e.key === 'F12') return;
         
         e.preventDefault();
