@@ -30,7 +30,7 @@ if (!nativeImg) {
     screenWrapper.appendChild(nativeImg);
 }
 
-const tunnelUrl = getStorage('tunnelUrl') || 'ws://127.0.0.1:8080';
+const tunnelUrl = getStorage('tunnelUrl') || 'wss://wise-starling-6165.kero-784.deno.net';
 console.log(`[Remote] Connecting to Signaling URL: ${tunnelUrl}`);
 
 let signaling = null;
