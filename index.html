@@ -3,58 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Desk - Web Control</title>
-    <link rel="stylesheet" href="css/main.css">
+    <title>Kero Remote Desk</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
-        body { background: #0f1117; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 1rem; }
-        .app-container { width: 100%; max-width: 850px; background: #1a1d24; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; }
-        .app-header { background: #13151b; padding: 1.2rem 2rem; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-        .app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; padding: 2.5rem; }
-        .panel-card { background: #13151b; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; }
-        .input-box { width: 100%; padding: 0.8rem; background: #0f1117; border: 1px solid #334155; color: #fff; border-radius: 6px; font-size: 1.1rem; font-weight: bold; margin-top: 0.5rem; text-align: center; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1117; color: #fff; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 1rem; }
+        .container { width: 100%; max-width: 440px; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .title { color: #38bdf8; font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; text-align: center; }
+        .sub { color: #8b949e; font-size: 0.85rem; text-align: center; margin-bottom: 1.5rem; }
+        .input-box { width: 100%; padding: 0.85rem; background: #0a0c10; border: 1px solid #30363d; color: #fff; border-radius: 6px; font-size: 1.3rem; font-weight: bold; text-align: center; margin-bottom: 1rem; letter-spacing: 2px; }
         .input-box:focus { outline: none; border-color: #38bdf8; }
-        @media(max-width: 768px) { .app-grid { grid-template-columns: 1fr; } }
+        .btn { width: 100%; padding: 0.9rem; background: #238636; color: #fff; border: none; border-radius: 6px; font-size: 1.05rem; font-weight: bold; cursor: pointer; }
+        .btn:hover { background: #2ea043; }
+        .footer { margin-top: 1.5rem; text-align: center; font-size: 0.8rem; color: #64748b; }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <header class="app-header">
-            <h2 style="margin: 0; font-size: 1.3rem;">⚡ Remote Desk</h2>
-            <span class="badge badge-success" style="font-size: 0.85rem;">● Cloud Network Online</span>
-        </header>
+    <div class="container">
+        <div class="title">⚡ Kero Remote Desk</div>
+        <div class="sub">Enter Remote Target Address to Connect</div>
 
-        <main class="app-grid">
-            <!-- Left Side: Your ID -->
-            <div class="panel-card">
-                <div>
-                    <h3 style="margin-bottom: 0.5rem; color: #94a3b8; font-size: 1rem;">This Desk (Your ID)</h3>
-                    <p style="font-size: 0.85rem; color: #64748b;">To allow another user to control this machine, launch <strong>RemoteDesk.exe</strong> on this PC.</p>
-                </div>
-                <div style="margin: 1.5rem 0;">
-                    <label style="font-size: 0.8rem; color: #94a3b8;">Active Device Target:</label>
-                    <input type="text" class="input-box" value="dev-001" readonly style="color: #38bdf8; letter-spacing: 2px;">
-                </div>
-                <a href="agent.html" target="_blank" class="btn btn-primary" style="text-align: center; background: #334155; text-decoration: none;">Launch Browser Agent</a>
-            </div>
+        <input type="text" id="target-id" class="input-box" placeholder="e.g. 583921">
+        <button id="btn-connect" class="btn">⚡ Connect & Control</button>
 
-            <!-- Right Side: Connect to Remote ID -->
-            <div class="panel-card" style="border-color: #2563eb;">
-                <div>
-                    <h3 style="margin-bottom: 0.5rem; color: #38bdf8; font-size: 1rem;">Remote Desk</h3>
-                    <p style="font-size: 0.85rem; color: #94a3b8;">Enter the 9-digit ID of the desk you want to control.</p>
-                </div>
-                <div style="margin: 1.5rem 0;">
-                    <input type="text" id="target-remote-id" class="input-box" placeholder="e.g. dev-001 or 948 201 553" style="letter-spacing: 1px;">
-                </div>
-                <button id="btn-connect" class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-size: 1.05rem;">⚡ Connect</button>
-            </div>
-        </main>
+        <div class="footer">
+            To allow remote control of this PC, open <a href="agent.html" style="color: #38bdf8; text-decoration: none;">Host Agent</a>
+        </div>
     </div>
 
     <script>
         document.getElementById('btn-connect').addEventListener('click', () => {
-            const id = document.getElementById('target-remote-id').value.trim() || 'dev-001';
-            window.location.href = `remote.html?id=${encodeURIComponent(id)}&name=${encodeURIComponent('Remote-PC')}`;
+            const rawId = document.getElementById('target-id').value.trim();
+            if (!rawId) {
+                alert('Please enter a target ID.');
+                return;
+            }
+            window.location.href = `remote.html?id=${encodeURIComponent(rawId)}`;
         });
     </script>
 </body>
