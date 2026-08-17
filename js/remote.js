@@ -1,12 +1,7 @@
-import { getElement, getStorage } from './utils.js';
-import { isAuthenticated } from './auth.js';
+import { getElement } from './utils.js';
 import { SignalingSocket } from './websocket.js';
 import { WebRTCConnection } from './webrtc.js';
 import { InputManager } from './input.js';
-
-if (!isAuthenticated()) {
-    window.location.replace('./login.html');
-}
 
 const urlParams = new URLSearchParams(window.location.search);
 const deviceId = urlParams.get('id') || 'dev-001';
@@ -18,80 +13,52 @@ const videoElement = getElement('remote-video');
 const screenWrapper = getElement('screen-wrapper');
 const demoBadge = getElement('demo-badge');
 
-// Create Native Screen Renderer Image Element
-let nativeImg = document.getElementById('remote-screen-img');
-if (!nativeImg) {
-    nativeImg = document.createElement('img');
-    nativeImg.id = 'remote-screen-img';
-    nativeImg.className = 'scale-fit';
-    nativeImg.style.display = 'none';
-    nativeImg.style.userSelect = 'none';
-    nativeImg.draggable = false;
-    screenWrapper.appendChild(nativeImg);
-}
+// Hardcoded Cloud Signaling URL
+const SIGNALING_URL = 'wss://wise-starling-6165.kero-784.deno.net';
 
-const tunnelUrl = getStorage('tunnelUrl') || 'wss://wise-starling-6165.kero-784.deno.net';
-console.log(`[Remote] Connecting to Signaling URL: ${tunnelUrl}`);
+const signaling = new SignalingSocket(SIGNALING_URL, 'controller', deviceId);
+const webrtc = new WebRTCConnection(signaling);
 
-let signaling = null;
-let webrtc = null;
-let inputMgr = null;
+// Dispatch mouse/keyboard directly over peer-to-peer UDP
+const inputMgr = new InputManager(screenWrapper, {
+    sendData: (payload) => {
+        webrtc.sendData(payload);
+    }
+});
+
 let mockAnimationId = null;
 
-function initSession() {
-    if (signaling) signaling.disconnect();
-    if (webrtc) webrtc.close();
+// 1. Direct WebRTC Hardware Stream Receiver (60 FPS 1080p)
+webrtc.onStream = (liveStream) => {
+    console.log('[P2P] Attaching Direct Hardware Video Stream to Screen!');
+    
+    if (mockAnimationId) {
+        cancelAnimationFrame(mockAnimationId);
+        mockAnimationId = null;
+    }
 
-    signaling = new SignalingSocket(tunnelUrl, 'controller', deviceId);
-    webrtc = new WebRTCConnection(signaling);
+    demoBadge.innerText = 'DIRECT P2P (60 FPS)';
+    demoBadge.className = 'badge badge-success';
+    videoElement.srcObject = liveStream;
+};
 
-    // Listen to mouse/keyboard inputs across the screen wrapper
-    inputMgr = new InputManager(screenWrapper, {
-        sendData: (payload) => {
-            if (signaling) {
-                signaling.sendToAgent({
-                    type: 'remote_input',
-                    payload: payload
-                });
-            }
-            if (webrtc) webrtc.sendData(payload);
-        }
-    });
+webrtc.onP2PConnected = () => {
+    console.log('⚡ Direct P2P Hole-Punch Connection Active!');
+};
 
-    // 1. Handle WebRTC Live Stream
-    webrtc.onStream = (liveStream) => {
-        if (mockAnimationId) { cancelAnimationFrame(mockAnimationId); mockAnimationId = null; }
-        nativeImg.style.display = 'none';
-        videoElement.style.display = 'block';
-        videoElement.srcObject = liveStream;
-        demoBadge.innerText = 'LIVE STREAM (60 FPS)';
-        demoBadge.className = 'badge badge-success';
-    };
+// 2. Signaling Message Router
+signaling.onMessage = (data) => {
+    if (data.type === 'webrtc_answer') {
+        webrtc.handleAnswer(data.sdp);
+    } else if (data.type === 'ice_candidate') {
+        webrtc.handleIceCandidate(data.candidate);
+    }
+};
 
-    // 2. Handle Incoming Native Screen Frames & WebRTC Handshake
-    signaling.onMessage = (data) => {
-        if (data.type === 'screen_frame') {
-            if (mockAnimationId) { cancelAnimationFrame(mockAnimationId); mockAnimationId = null; }
-            videoElement.style.display = 'none';
-            nativeImg.style.display = 'block';
-            nativeImg.src = 'data:image/jpeg;base64,' + data.image;
+signaling.connect();
+webrtc.init();
 
-            demoBadge.innerText = 'LIVE STREAM (NATIVE AGENT)';
-            demoBadge.className = 'badge badge-success';
-        } else if (data.type === 'webrtc_answer') {
-            webrtc.handleAnswer(data.sdp);
-        } else if (data.type === 'ice_candidate') {
-            webrtc.handleIceCandidate(data.candidate);
-        }
-    };
-
-    signaling.connect();
-    webrtc.init();
-}
-
-initSession();
-
-// Fallback Canvas Mock
+// Fallback animation while STUN hole punches
 function startMockStream() {
     const canvas = document.createElement('canvas');
     canvas.width = 1920;
@@ -99,33 +66,33 @@ function startMockStream() {
     const ctx = canvas.getContext('2d');
     let x = 0;
     
-    function drawFakeDesktop() {
-        ctx.fillStyle = '#0f172a';
+    function draw() {
+        ctx.fillStyle = '#0e1117';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        ctx.fillStyle = '#1e293b';
+        ctx.fillStyle = '#161b22';
         ctx.fillRect(300, 150, 1320, 780);
         
-        ctx.fillStyle = '#334155';
+        ctx.fillStyle = '#30363d';
         ctx.fillRect(300, 150, 1320, 50);
         
         ctx.fillStyle = '#ffffff';
-        ctx.font = '32px Arial';
-        ctx.fillText(`Waiting for connection to: ${deviceName}...`, 350, 280);
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '22px Arial';
-        ctx.fillText('Launch RemoteDesk.exe on the target computer and click Start Remote Support.', 350, 340);
+        ctx.font = '30px Segoe UI';
+        ctx.fillText(`Connecting P2P to: ${deviceName} (${deviceId})...`, 350, 280);
         
-        ctx.fillStyle = '#3b82f6';
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '20px Segoe UI';
+        ctx.fillText('Establishing direct UDP link via STUN hole-punching...', 350, 340);
+        
+        ctx.fillStyle = '#238636';
         ctx.beginPath();
-        ctx.arc((x % (canvas.width - 600)) + 300, 500, 25, 0, Math.PI * 2);
+        ctx.arc((x % (canvas.width - 600)) + 300, 500, 22, 0, Math.PI * 2);
         ctx.fill();
         x += 6;
         
-        mockAnimationId = requestAnimationFrame(drawFakeDesktop);
+        mockAnimationId = requestAnimationFrame(draw);
     }
-    
-    drawFakeDesktop();
+    draw();
     videoElement.srcObject = canvas.captureStream(30);
     videoElement.className = 'scale-fit';
 }
@@ -133,53 +100,13 @@ function startMockStream() {
 startMockStream();
 
 // Toolbar Controls
-const btnMouse = getElement('btn-mouse');
-if (btnMouse) {
-    btnMouse.addEventListener('click', () => {
-        btnMouse.classList.toggle('active');
-        if (inputMgr) inputMgr.toggleMouse(btnMouse.classList.contains('active'));
-    });
-}
+getElement('btn-fullscreen').addEventListener('click', () => {
+    if (!document.fullscreenElement) screenWrapper.requestFullscreen();
+    else document.exitFullscreen();
+});
 
-const btnKeyboard = getElement('btn-keyboard');
-if (btnKeyboard) {
-    btnKeyboard.addEventListener('click', () => {
-        btnKeyboard.classList.toggle('active');
-        if (inputMgr) inputMgr.toggleKeyboard(btnKeyboard.classList.contains('active'));
-    });
-}
-
-const selectScale = getElement('select-scale');
-if (selectScale) {
-    selectScale.addEventListener('change', (e) => {
-        const cls = e.target.value === 'fit' ? 'scale-fit' : 'scale-actual';
-        videoElement.className = cls;
-        nativeImg.className = cls;
-    });
-}
-
-const btnFullscreen = getElement('btn-fullscreen');
-if (btnFullscreen) {
-    btnFullscreen.addEventListener('click', () => {
-        if (!document.fullscreenElement) screenWrapper.requestFullscreen();
-        else document.exitFullscreen();
-    });
-}
-
-const btnReconnect = getElement('btn-reconnect');
-if (btnReconnect) {
-    btnReconnect.addEventListener('click', () => {
-        demoBadge.innerText = 'RECONNECTING...';
-        demoBadge.className = 'badge badge-warning';
-        initSession();
-    });
-}
-
-const btnDisconnect = getElement('btn-disconnect');
-if (btnDisconnect) {
-    btnDisconnect.addEventListener('click', () => {
-        if (signaling) signaling.disconnect();
-        if (webrtc) webrtc.close();
-        window.location.replace('./dashboard.html');
-    });
-}
+getElement('btn-disconnect').addEventListener('click', () => {
+    webrtc.close();
+    signaling.disconnect();
+    window.location.replace('./index.html');
+});
