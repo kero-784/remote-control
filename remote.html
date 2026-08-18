@@ -8,12 +8,51 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #000; overflow: hidden; height: 100vh; width: 100vw; display: flex; flex-direction: column; }
-        .toolbar { height: 45px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; padding: 0 1rem; color: #fff; font-family: sans-serif; font-size: 0.85rem; z-index: 100; }
-        .tool-btn { background: #21262d; border: 1px solid #30363d; color: #fff; padding: 0.35rem 0.7rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        
+        .toolbar { 
+            height: 45px; 
+            background: #161b22; 
+            border-bottom: 1px solid #30363d; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 0 1rem; 
+            color: #fff; 
+            font-family: sans-serif; 
+            font-size: 0.85rem; 
+            z-index: 100; 
+        }
+        
+        .tool-btn { 
+            background: #21262d; 
+            border: 1px solid #30363d; 
+            color: #fff; 
+            padding: 0.35rem 0.7rem; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.8rem; 
+            font-weight: bold; 
+        }
         .tool-btn:hover { background: #30363d; }
         .btn-danger { background: #da3633; border: none; }
-        .screen-container { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; background: #000; overflow: hidden; }
-        #remote-video { width: 100%; height: 100%; object-fit: contain; cursor: crosshair; }
+        
+        .screen-container { 
+            flex: 1; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            position: relative; 
+            background: #000; 
+            overflow: hidden; 
+        }
+
+        /* FIXED: Removed 'cursor: crosshair' to eliminate the double plus-sign cursor */
+        #remote-video { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain; 
+            cursor: default; 
+        }
     </style>
 </head>
 <body>
@@ -23,6 +62,7 @@
             <span id="status-badge" style="margin-left: 1rem; color: #4ade80; font-weight: bold;">● P2P Connecting...</span>
         </div>
         <div style="display: flex; gap: 0.5rem;">
+            <button class="tool-btn" id="btn-cursor-toggle">Hide Local Cursor</button>
             <button class="tool-btn" id="btn-full">⛶ Fullscreen</button>
             <button class="tool-btn btn-danger" id="btn-exit">Disconnect</button>
         </div>
@@ -41,15 +81,16 @@
         const video = document.getElementById('remote-video');
         const statusBadge = document.getElementById('status-badge');
         const screenBox = document.getElementById('screen-box');
+        const btnCursorToggle = document.getElementById('btn-cursor-toggle');
 
         const peer = new Peer();
         let dataConn = null;
 
         peer.on('open', () => {
-            // 1. Establish DataChannel for instant mouse/keyboard
+            // 1. Establish direct UDP DataChannel
             dataConn = peer.connect(targetPeerId);
             dataConn.on('open', () => {
-                statusBadge.innerText = '● P2P Direct (60 FPS)';
+                statusBadge.innerText = '● Direct P2P (60 FPS)';
             });
 
             // 2. Request Hardware 60 FPS Video Stream
@@ -65,19 +106,56 @@
             return canvas.captureStream(1);
         }
 
-        // Mouse Normalization & Instant Dispatch
-        function sendMouse(type, e) {
-            if (!dataConn || !dataConn.open) return;
+        // =========================================================================
+        // MATHEMATICAL ASPECT-RATIO & LETTERBOX COMPENSATION (Fixes Mouse Offset!)
+        // =========================================================================
+        function getNormalizedCoords(e) {
             const rect = video.getBoundingClientRect();
-            let x = (e.clientX - rect.left) / rect.width;
-            let y = (e.clientY - rect.top) / rect.height;
+            
+            const videoWidth = video.videoWidth || 1920;
+            const videoHeight = video.videoHeight || 1080;
+
+            const containerWidth = rect.width;
+            const containerHeight = rect.height;
+
+            const containerRatio = containerWidth / containerHeight;
+            const videoRatio = videoWidth / videoHeight;
+
+            let renderedW, renderedH, offsetX = 0, offsetY = 0;
+
+            if (containerRatio > videoRatio) {
+                // Pillarboxed: Black bars on left and right
+                renderedH = containerHeight;
+                renderedW = containerHeight * videoRatio;
+                offsetX = (containerWidth - renderedW) / 2;
+            } else {
+                // Letterboxed: Black bars on top and bottom
+                renderedW = containerWidth;
+                renderedH = containerWidth / videoRatio;
+                offsetY = (containerHeight - renderedH) / 2;
+            }
+
+            const clickX = e.clientX - rect.left - offsetX;
+            const clickY = e.clientY - rect.top - offsetY;
+
+            let x = clickX / renderedW;
+            let y = clickY / renderedH;
+
+            // Clamp between 0.0 and 1.0 so coordinates never overflow
             x = Math.max(0, Math.min(1, x));
             y = Math.max(0, Math.min(1, y));
 
+            return { x: x.toFixed(5), y: y.toFixed(5) };
+        }
+
+        function sendMouse(type, e) {
+            if (!dataConn || !dataConn.open) return;
+            const coords = getNormalizedCoords(e);
+
             dataConn.send(JSON.stringify({
                 type: type,
-                x: x.toFixed(4),
-                y: y.toFixed(4),
+                x: coords.x,
+                y: coords.y,
                 button: e.button === 2 ? 'right' : 'left'
             }));
         }
@@ -92,6 +170,14 @@
             if (e.key.length === 1) {
                 dataConn.send(JSON.stringify({ type: 'key_down', key: e.key }));
             }
+        });
+
+        // Toggle Local Cursor visibility (shows only the remote pointer)
+        let isCursorHidden = false;
+        btnCursorToggle.addEventListener('click', () => {
+            isCursorHidden = !isCursorHidden;
+            video.style.cursor = isCursorHidden ? 'none' : 'default';
+            btnCursorToggle.innerText = isCursorHidden ? 'Show Local Cursor' : 'Hide Local Cursor';
         });
 
         document.getElementById('btn-full').addEventListener('click', () => {
